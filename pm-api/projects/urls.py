@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import ProjectView
+from .views import ProjectBotView
 
 urlpatterns = [
-    path('get-project-list/<uuid:id>', ProjectView.get_project_list),
-    path('create-project', ProjectView.create_project)
+    path('get-project-list/<str:guild_id>', ProjectBotView.get_project_list),
+    path('create-project', ProjectBotView.create_project)
 ]

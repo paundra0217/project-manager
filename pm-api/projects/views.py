@@ -1,18 +1,23 @@
 from django.shortcuts import render
 from .models import ProjectBoard
+from .serializers import ProjectBoardSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, action
 
-class ProjectView():
+class ProjectBotView():
     @api_view(["GET"])
-    def get_project(id, request):
+    def get_project(request, id):
         return
     
     @api_view(["GET"])
-    def get_project_list(id, request):
-        projects = ProjectBoard.objects.filter(server_id=id)
-        return
+    def get_project_list(request, guild_id):
+        projects = ProjectBoard.objects.filter(server_id=guild_id)
+
+        return Response(
+                {"projects": ProjectBoardSerializer(projects, many=True).data},
+                status=status.HTTP_200_OK,
+            )
 
     @api_view(["POST"])
     def create_project(request):
@@ -51,12 +56,20 @@ class ProjectView():
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
+        user = request.data.get("user")
+        if not user:
+            return Response(
+                {"message": "Project creator (user) is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         project = ProjectBoard.objects.create(
             name=name, 
             description=description, 
             server_id=server, 
             channel_id=channel,
-            message_id=message
+            message_id=message,
+            updated_by=user
             )
 
         return Response(
