@@ -1,6 +1,6 @@
 from django.db import models
 from pmapi.models import ActiveManager
-from projects.models import ProjectBoard
+from projects.models import ProjectBoard, BoardColumn
 from django.utils.translation import gettext_lazy as _
 import uuid
 
@@ -10,6 +10,7 @@ class TaskItem(models.Model):
     project = models.ForeignKey(ProjectBoard, on_delete=models.CASCADE)
     name = models.CharField(max_length=128)
     description = models.CharField(max_length=1024)
+    category = models.ForeignKey(BoardColumn, on_delete=models.CASCADE)
     is_deleted = models.BooleanField(default=False)
 
     objects = ActiveManager()
@@ -33,4 +34,4 @@ class TaskMembers(models.Model):
     all_objects = models.Manager()
 
     def __str__(self):
-        return self.name
+        return self.user

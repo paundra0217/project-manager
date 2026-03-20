@@ -8,6 +8,8 @@ class ProjectBoard(models.Model):
     server_id = models.CharField(max_length=24)
     name = models.CharField(max_length=128)
     description = models.CharField(max_length=1024)
+    channel_id = models.CharField(max_length=24)
+    message_id = models.CharField(max_length=24, default="")
     is_deleted = models.BooleanField(default=False)
 
     objects = ActiveManager()
