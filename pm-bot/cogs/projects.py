@@ -7,19 +7,15 @@ class Projects(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def create_project_embed(self, message, name, description, project_id):
+    def parse_project_embed(self, name, description, project_id):
         embed = Embed(
             color=Color.ash_embed(),
             title=name,
             description=description,
         )
         embed.set_footer(text=f"Project ID: {project_id}")
-
-        await message.edit(content="", embed=embed)
-
-    @commands.hybrid_command(name="hello")
-    async def hello(self, ctx):
-        await ctx.send("Hi!")
+        
+        return embed
 
     @commands.hybrid_command(name="create")
     async def create_project(self, ctx):
@@ -84,7 +80,7 @@ class Projects(commands.Cog):
             
             project_id = response.json()['id']
 
-            await self.create_project_embed(message=board, name=name, description=description, project_id=project_id)
+            await board.edit(content="", embed=self.parse_project_embed(name=name, description=description, project_id=project_id))
 
             await message.edit(content=
                 f"✅ Project created!\n"
@@ -156,9 +152,17 @@ class Projects(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send("❌ Project ID is required.\n\nFormat: `?list [project-id]`")
             return
+        
+        print(error)
 
     @commands.hybrid_command(name="edit")
     async def edit_project(self, ctx, id):
+        """
+        Edits a project and automatically updates the project board if available.
+
+        Usage: ?edit <project_id>
+        """
+        
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
         
@@ -185,39 +189,106 @@ class Projects(commands.Cog):
         confirm = await self.bot.wait_for("message", check=check)
         if confirm.content != "yes":
             await ctx.send("❌ Edit cancelled. If you think this is a mistake, edit again but type `yes` when prompted to confirm.")
+            await confirm.delete()
             return
-
+    
+        await confirm.delete()
+        
         name = data['name']
         description = data['description']
 
         while True:
-            await ctx.send(
+            editmenu = await ctx.send(
                 "Which field you want to edit?\n\n"
-                "`name` for project name",
-                "`desc` for project description",
-                "`done` for confirm edit",
-                "`exit` for cancel edit",
+                "`name` for project name\n"
+                "`desc` for project description\n"
+                "`done` for apply changes\n"
+                "`exit` for cancel edit\n"
                 )
             
             selection = await self.bot.wait_for("message", check=check)
-            name = name_msg.content
 
             match selection.content:
                 case "name":
-                    await ctx.send("New name of the project?")
+                    await selection.delete()
+                    
+                    menu = await ctx.send("New name of the project?")
                     name_msg = await self.bot.wait_for("message", check=check)
                     name = name_msg.content
 
+                    await editmenu.delete()
+                    await menu.delete()
+                    await name_msg.delete()
+
+                    await ctx.send("New name changed")
+
                 case "desc":
-                    await ctx.send("Description of the project?")
+                    await selection.delete()
+
+                    menu = await ctx.send("New description of the project?")
                     desc_msg = await self.bot.wait_for("message", check=check)
                     description = desc_msg.content
+
+                    await editmenu.delete()
+                    await menu.delete()
+                    await desc_msg.delete()
+
+                    await ctx.send("New description changed")
                 
+                case "done":
+                    await editmenu.delete()
+                    await selection.delete()
+
+                    embed = Embed(
+                        color=Color.ash_embed(),
+                        title=name,
+                        description=description,
+                    )
+                    embed.set_footer(text=data['id'])
+                    menu = await ctx.send("Please confirm the edited project. To apply changes, type `yes`.", embed=embed)
+                    edit_confirm = ""
+                    edit_confirm = await self.bot.wait_for("message", check=check)
+                    if edit_confirm.content == "yes":
+                        result = await ctx.send("🔄 Applying changes...")
+                        await menu.delete()
+                        await edit_confirm.delete()
+
+                        response = requests.patch(
+                        os.getenv("API_URL") + 'projects/edit-project',
+                        json={
+                            'name': name,
+                            'description': description,
+                            'user': ctx.author.id
+                            }
+                        )
+                        if response.status_code == 500:
+                            await ctx.send("❌ Unknown Error Occured, please try again later.")
+                            return
+                        
+                        data.json()['project']
+                        board_channel = self.bot.get_channel(data['channel_id'])
+                        board = await board_channel.fetch_message(data['message_id'])
+
+                        embeds = [self.parse_project_embed(name=data['name'], description=data['description'], project_id=data['project_id'])]
+                        board
+
+                        await result.edit(content="✅ Changes applied!")
+
+                        return
+                    else:
+                        await ctx.send("❌ Changes unapplied. If you think this is a mistake, apply changes again but type `yes` when prompted to confirm.")
+                        await menu.delete()
+                        await edit_confirm.delete()
+
                 case "exit":
+                    await editmenu.delete()
+                    await selection.delete()
                     await ctx.send("Edit cancelled")
                     return
 
                 case _:
+                    await editmenu.delete()
+                    await selection.delete()
                     await ctx.send("Invalid selection")
 
     @edit_project.error
@@ -225,6 +296,8 @@ class Projects(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send("❌ Project ID is required.\n\nFormat: `?edit [project-id]`")
             return
+        
+        print(error)
 
 
 

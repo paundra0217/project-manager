@@ -86,3 +86,37 @@ class ProjectBotView():
                 {"id": project.id},
                 status=status.HTTP_201_CREATED,
             )
+    
+    @api_view(["PATCH"])
+    def edit_project(request, id):
+        name = request.data.get("name")
+        if not name:
+            return Response(
+                {"message": "Name is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        description = request.data.get("description")
+        if not description:
+            return Response(
+                {"message": "Description is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        user = request.data.get("user")
+        if not user:
+            return Response(
+                {"message": "Project editor (user) is missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        project = ProjectBoard.objects.get(id=id)
+        project.name = name
+        project.description = description
+        project.updated_by = user
+        project.save()
+
+        return Response(
+                {"project": ProjectBoardSerializer(project).data},
+                status=status.HTTP_200_OK,
+            )
