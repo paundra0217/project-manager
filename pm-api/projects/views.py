@@ -7,15 +7,25 @@ from rest_framework.decorators import api_view, permission_classes, action
 
 class ProjectBotView():
     @api_view(["GET"])
-    def get_project(request, id):
-        return
-    
-    @api_view(["GET"])
     def get_project_list(request, guild_id):
         projects = ProjectBoard.objects.filter(server_id=guild_id)
 
         return Response(
                 {"projects": ProjectBoardSerializer(projects, many=True).data},
+                status=status.HTTP_200_OK,
+            )
+
+    @api_view(["GET"])
+    def get_project(request, id):
+        project = ProjectBoard.objects.filter(id=id).first()
+        if not project:
+            return Response(
+                {"message": "Project does not exist"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        return Response(
+                {"project": ProjectBoardSerializer(project).data},
                 status=status.HTTP_200_OK,
             )
 
