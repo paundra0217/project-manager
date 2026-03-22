@@ -1,2 +1,5 @@
 .env
-discord.log
+*.log
+*.pot
+*.pyc
+__pycache__/

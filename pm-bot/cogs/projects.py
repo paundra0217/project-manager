@@ -1,7 +1,8 @@
-from discord import Embed, Color
+from discord import Embed, Color, NotFound, Forbidden
 from discord.ext import commands
 import requests
 import os
+import traceback
 
 class Projects(commands.Cog):
     def __init__(self, bot):
@@ -13,7 +14,7 @@ class Projects(commands.Cog):
             title=name,
             description=description,
         )
-        embed.set_footer(text=f"Project ID: {project_id}")
+        embed.set_footer(text=f"ID: {project_id}")
         
         return embed
 
@@ -185,10 +186,11 @@ class Projects(commands.Cog):
         )
         embed.set_footer(text=data['id'])
 
-        await ctx.send(f"Here is the project you want to edit. Type `yes` to continue.", embed=embed)
+        olddata = await ctx.send(f"Here is the project you want to edit. Type `yes` to continue.", embed=embed)
         confirm = await self.bot.wait_for("message", check=check)
         if confirm.content != "yes":
             await ctx.send("❌ Edit cancelled. If you think this is a mistake, edit again but type `yes` when prompted to confirm.")
+            await olddata.delete()
             await confirm.delete()
             return
     
@@ -217,10 +219,9 @@ class Projects(commands.Cog):
                     name = name_msg.content
 
                     await editmenu.delete()
-                    await menu.delete()
                     await name_msg.delete()
 
-                    await ctx.send("New name changed")
+                    await menu.edit(content="New name changed")
 
                 case "desc":
                     await selection.delete()
@@ -230,10 +231,9 @@ class Projects(commands.Cog):
                     description = desc_msg.content
 
                     await editmenu.delete()
-                    await menu.delete()
                     await desc_msg.delete()
 
-                    await ctx.send("New description changed")
+                    await menu.edit(content="New description changed")
                 
                 case "done":
                     await editmenu.delete()
@@ -249,12 +249,13 @@ class Projects(commands.Cog):
                     edit_confirm = ""
                     edit_confirm = await self.bot.wait_for("message", check=check)
                     if edit_confirm.content == "yes":
-                        result = await ctx.send("🔄 Applying changes...")
-                        await menu.delete()
+                        await menu.edit(content="🔄 Applying changes...", embeds=[])
+                        await olddata.delete()
                         await edit_confirm.delete()
 
+                        # Sends the changes to the API first
                         response = requests.patch(
-                        os.getenv("API_URL") + 'projects/edit-project',
+                        os.getenv("API_URL") + f'projects/edit-project/{id}',
                         json={
                             'name': name,
                             'description': description,
@@ -265,31 +266,46 @@ class Projects(commands.Cog):
                             await ctx.send("❌ Unknown Error Occured, please try again later.")
                             return
                         
-                        data.json()['project']
-                        board_channel = self.bot.get_channel(data['channel_id'])
-                        board = await board_channel.fetch_message(data['message_id'])
+                        # Attempting to edit the project board
+                        try:
+                            new_data = response.json()['project']
+                            
+                            channel_id = int(new_data['channel_id'])
+                            message_id = int(new_data['message_id'])
+ 
+                            board_channel = self.bot.get_channel(channel_id)
 
-                        embeds = [self.parse_project_embed(name=data['name'], description=data['description'], project_id=data['project_id'])]
-                        board
+                            if board_channel is None:
+                                board_channel = await self.bot.fetch_channel(channel_id)
 
-                        await result.edit(content="✅ Changes applied!")
+                            board = await board_channel.fetch_message(message_id)
+
+                            embeds = [self.parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
+                            await board.edit(embeds=embeds)
+                        except NotFound:
+                            await ctx.send("⚠️ I cannot update the project board because the channel or the message where the project board is seems to be deleted. Please try to send the project board again to get automatic updates.")
+                        except Forbidden:
+                            await ctx.send("⚠️ I cannot update the project board because I do not have permission to access the channel or message where the project board lives. Double check my permissions and update the project board manually.")
+                        except Exception as e:
+                            traceback.print_exc()
+                            await ctx.send("⚠️ An unknown error preventing me to edit the project board. Please try updating the board manually later.")
+
+                        await menu.edit(content="✅ Changes applied!")
 
                         return
                     else:
-                        await ctx.send("❌ Changes unapplied. If you think this is a mistake, apply changes again but type `yes` when prompted to confirm.")
-                        await menu.delete()
                         await edit_confirm.delete()
+                        await menu.edit(content="❌ Changes unapplied. If you think this is a mistake, apply changes again but type `yes` when prompted to confirm.")
 
                 case "exit":
-                    await editmenu.delete()
                     await selection.delete()
-                    await ctx.send("Edit cancelled")
+                    await olddata.delete()
+                    await editmenu.edit(content="Edit cancelled")
                     return
 
                 case _:
-                    await editmenu.delete()
                     await selection.delete()
-                    await ctx.send("Invalid selection")
+                    await editmenu.edit(content="Invalid selection")
 
     @edit_project.error
     async def project_details_err(self, ctx, error):
