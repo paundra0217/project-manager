@@ -1,5 +1,6 @@
 from discord import Embed, Color, NotFound, Forbidden
 from discord.ext import commands
+from datetime import datetime
 import requests
 import os
 import traceback
@@ -20,6 +21,12 @@ class Projects(commands.Cog):
 
     @commands.hybrid_command(name="create")
     async def create_project(self, ctx):
+        """
+        Create a new project.
+
+        Usage: ?create
+        """
+
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
     
@@ -62,7 +69,7 @@ class Projects(commands.Cog):
 
         try:
             response = requests.post(
-            os.getenv("API_URL") + 'projects/create-project',
+            os.getenv("API_URL") + 'projects/',
             json={
                 'name': name,
                 'description': description,
@@ -98,7 +105,12 @@ class Projects(commands.Cog):
 
     @commands.hybrid_command(name="list")
     async def list_projects(self, ctx):
-        response = requests.get(os.getenv("API_URL") + f'projects/get-project-list/{ctx.message.guild.id}')
+        """
+        Lists all the projects.
+
+        Usage: ?list
+        """
+        response = requests.get(os.getenv("API_URL") + f'projects/list/{ctx.message.guild.id}')
 
         if response.status_code != 200:
             await ctx.send("❌ Cannot obtain list of projects, please try again later.")
@@ -110,10 +122,13 @@ class Projects(commands.Cog):
         )
 
         for project in response.json()['projects']:
-            embed.add_field(name=project['name'], 
+            iso_time = project['created_at']
+            dt = datetime.fromisoformat(iso_time.replace("Z", "+00:00"))
+            unix_timestamp = int(dt.timestamp())
+
+            embed.add_field(name=f"{project['name']} ({project['id']})", 
                             value=
-                                f"{project['id']}\n"
-                                f"Created: {project['created_at']}\n"
+                                f"Created: <t:{unix_timestamp}:F>\n"
                                 f"```{project['description']}```\n",
                             inline=False
                             )
@@ -123,8 +138,14 @@ class Projects(commands.Cog):
     
     @commands.hybrid_command(name="details")
     async def project_details(self, ctx, id):
+        """
+        Get a project details based on the ID.
+
+        Usage: ?details <project-id> 
+        """
+
         try:
-            response = requests.get(os.getenv("API_URL") + f'projects/get-project/{id}')
+            response = requests.get(os.getenv("API_URL") + f'projects/{id}')
 
             if response.status_code == 404:
                 await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
@@ -151,7 +172,7 @@ class Projects(commands.Cog):
     @project_details.error
     async def project_details_err(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Project ID is required.\n\nFormat: `?list [project-id]`")
+            await ctx.send("❌ Project ID is required. Format: `?list [project-id]`")
             return
         
         print(error)
@@ -167,7 +188,7 @@ class Projects(commands.Cog):
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
         
-        response = requests.get(os.getenv("API_URL") + f'projects/get-project/{id}')
+        response = requests.get(os.getenv("API_URL") + f'projects/{id}')
 
         if response.status_code == 404:
             await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
@@ -255,15 +276,15 @@ class Projects(commands.Cog):
 
                         # Sends the changes to the API first
                         response = requests.patch(
-                        os.getenv("API_URL") + f'projects/edit-project/{id}',
+                        os.getenv("API_URL") + f'projects/{id}',
                         json={
                             'name': name,
                             'description': description,
                             'user': ctx.author.id
                             }
                         )
-                        if response.status_code == 500:
-                            await ctx.send("❌ Unknown Error Occured, please try again later.")
+                        if response.status_code != 200:
+                            await menu.edit(content="❌ Unknown Error Occured, please try again later.")
                             return
                         
                         # Attempting to edit the project board
@@ -308,13 +329,88 @@ class Projects(commands.Cog):
                     await editmenu.edit(content="Invalid selection")
 
     @edit_project.error
-    async def project_details_err(self, ctx, error):
+    async def edit_project_err(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Project ID is required.\n\nFormat: `?edit [project-id]`")
+            await ctx.send("❌ Project ID is required. Format: `?edit <project-id>`")
             return
         
         print(error)
 
+    @commands.hybrid_command(name="delete")
+    async def delete_project(self, ctx, id):
+        """
+        Deletes the project board.
+
+        Usage: ?delete <project_id>
+        """
+
+        def check(m):
+            return m.author == ctx.author and m.channel == ctx.channel
+        
+        response = requests.get(os.getenv("API_URL") + f'projects/{id}')
+
+        if response.status_code == 404:
+            await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
+            return
+                
+        if response.status_code != 200:
+            await ctx.send("❌ Unknown Error Occured, please try again later.")
+            return
+
+        data = response.json()['project']
+
+        embed = Embed(
+            color=Color.ash_embed(),
+            title=data['name'],
+            description=data['description'],
+        )
+        embed.set_footer(text=data['id'])
+
+        prompt = await ctx.send(f"Here is the project you want to delete. **Deleting the project will delete the project and it's contents forever and this action cannot be undone!** Consider archiving the project instead. Type `yes` to continue.", embed=embed)
+        confirm = await self.bot.wait_for("message", check=check)
+        if confirm.content != "yes":
+            await ctx.send("❌ Deletion cancelled. If you think this is a mistake, delete again but type `yes` when prompted to confirm. You may want to conside archiving the project instead because deletion cannot be undone.")
+            await prompt.delete()
+            await confirm.delete()
+            return
+
+        await prompt.edit(content="🔄 Deleting project...", embeds=[])    
+        await confirm.delete()
+
+        response = requests.delete(os.getenv("API_URL") + f'projects/{id}')
+        if response.status_code != 204:
+            await prompt.edit("❌ Unknown Error Occured, please try again later.")
+            return
+
+        try:                            
+            channel_id = int(data['channel_id'])
+            message_id = int(data['message_id'])
+ 
+            board_channel = self.bot.get_channel(channel_id)
+
+            if board_channel is None:
+                board_channel = await self.bot.fetch_channel(channel_id)
+
+            board = await board_channel.fetch_message(message_id)
+
+            await board.delete()
+        except NotFound:
+            await ctx.send("⚠️ I cannot delete the project board because the channel or the message where the project board is seems to be deleted. Search the project board if still available delete the project board manually. If it's deleted manually beforehand, then there's no further action required and you can safely ignore this warning.")
+        except Forbidden:
+            await ctx.send("⚠️ I cannot delete the project board because I do not have permission to access the channel or message where the project board lives. Double check my permissions and delete the project board manually.")
+        except Exception as e:
+            traceback.print_exc()
+            await ctx.send("⚠️ An unknown error preventing me to delete the project board. Please delete the board manually.")
+
+        await prompt.edit(content="✅ Project deleted!")
+    
+    @delete_project.error
+    async def delete_project_err(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("❌ Project ID is required. Format: `?delete <project-id>`")
+            return
+        
+        print(error)
 
 
 async def setup(bot):

@@ -15,20 +15,6 @@ class ProjectBotView():
                 status=status.HTTP_200_OK,
             )
 
-    @api_view(["GET"])
-    def get_project(request, id):
-        project = ProjectBoard.objects.filter(id=id).first()
-        if not project:
-            return Response(
-                {"message": "Project does not exist"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        
-        return Response(
-                {"project": ProjectBoardSerializer(project).data},
-                status=status.HTTP_200_OK,
-            )
-
     @api_view(["POST"])
     def create_project(request):
         name = request.data.get("name")
@@ -87,7 +73,30 @@ class ProjectBotView():
                 status=status.HTTP_201_CREATED,
             )
     
-    @api_view(["PATCH"])
+    @api_view(['GET', 'PATCH', 'DELETE'])
+    def project_detail(request, id):
+        if request.method == 'GET':
+            return ProjectBotView.get_project(request, id)
+
+        elif request.method == 'PATCH':
+            return ProjectBotView.edit_project(request, id)
+
+        elif request.method == 'DELETE':
+            return ProjectBotView.delete_project(request, id)
+        
+    def get_project(request, id):
+        project = ProjectBoard.objects.filter(id=id).first()
+        if not project:
+            return Response(
+                {"message": "Project does not exist"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        return Response(
+                {"project": ProjectBoardSerializer(project).data},
+                status=status.HTTP_200_OK,
+            )
+    
     def edit_project(request, id):
         name = request.data.get("name")
         if not name:
@@ -119,4 +128,13 @@ class ProjectBotView():
         return Response(
                 {"project": ProjectBoardSerializer(project).data},
                 status=status.HTTP_200_OK,
+            )
+    
+    def delete_project(request, id):
+        project = ProjectBoard.objects.get(id=id)
+        project.is_deleted = True
+        project.save()
+
+        return Response(
+                status=status.HTTP_204_NO_CONTENT,
             )
