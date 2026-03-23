@@ -6,8 +6,8 @@ class ActiveManager(models.Manager):
         return super().get_queryset().filter(is_deleted=False)
     
 class TimeStampedModel(models.Model):
-    created_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta: 
         abstract = True

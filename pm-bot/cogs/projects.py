@@ -1,25 +1,19 @@
 from discord import Embed, Color, NotFound, Forbidden
 from discord.ext import commands
 from datetime import datetime
+from utils import get_project, parse_project_embed
 import requests
 import os
 import traceback
 
+"""
+Contains the commands relating to managing project data within the application.
+"""
 class Projects(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def parse_project_embed(self, name, description, project_id):
-        embed = Embed(
-            color=Color.ash_embed(),
-            title=name,
-            description=description,
-        )
-        embed.set_footer(text=f"ID: {project_id}")
-        
-        return embed
-
-    @commands.hybrid_command(name="create")
+    @commands.hybrid_command(name="create", description="Creates a project")
     async def create_project(self, ctx):
         """
         Create a new project.
@@ -88,7 +82,7 @@ class Projects(commands.Cog):
             
             project_id = response.json()['id']
 
-            await board.edit(content="", embed=self.parse_project_embed(name=name, description=description, project_id=project_id))
+            await board.edit(content="", embed=parse_project_embed(name=name, description=description, project_id=project_id))
 
             await message.edit(content=
                 f"✅ Project created!\n"
@@ -103,7 +97,7 @@ class Projects(commands.Cog):
             await board.delete()
             return
 
-    @commands.hybrid_command(name="list")
+    @commands.hybrid_command(name="list", description="List all the projects in the server")
     async def list_projects(self, ctx):
         """
         Lists all the projects.
@@ -145,17 +139,9 @@ class Projects(commands.Cog):
         """
 
         try:
-            response = requests.get(os.getenv("API_URL") + f'projects/{id}')
-
-            if response.status_code == 404:
-                await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
+            data = await get_project(ctx=ctx, id=id)
+            if data is None:
                 return
-                
-            if response.status_code == 500:
-                await ctx.send("❌ Unknown Error Occured, please try again later.")
-                return
-
-            data = response.json()['project']
 
             embed = Embed(
                 color=Color.ash_embed(),
@@ -167,7 +153,6 @@ class Projects(commands.Cog):
             await ctx.send(f"Project Details for {data['name']}", embed=embed)
         except:
             await ctx.send("❌ Unknown Error Occured, please try again later.")
-            return
 
     @project_details.error
     async def project_details_err(self, ctx, error):
@@ -188,17 +173,9 @@ class Projects(commands.Cog):
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
         
-        response = requests.get(os.getenv("API_URL") + f'projects/{id}')
-
-        if response.status_code == 404:
-            await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
             return
-                
-        if response.status_code == 500:
-            await ctx.send("❌ Unknown Error Occured, please try again later.")
-            return
-
-        data = response.json()['project']
 
         embed = Embed(
             color=Color.ash_embed(),
@@ -301,7 +278,7 @@ class Projects(commands.Cog):
 
                             board = await board_channel.fetch_message(message_id)
 
-                            embeds = [self.parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
+                            embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
                             await board.edit(embeds=embeds)
                         except NotFound:
                             await ctx.send("⚠️ I cannot update the project board because the channel or the message where the project board is seems to be deleted. Please try to send the project board again to get automatic updates.")
@@ -347,17 +324,9 @@ class Projects(commands.Cog):
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
         
-        response = requests.get(os.getenv("API_URL") + f'projects/{id}')
-
-        if response.status_code == 404:
-            await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
             return
-                
-        if response.status_code != 200:
-            await ctx.send("❌ Unknown Error Occured, please try again later.")
-            return
-
-        data = response.json()['project']
 
         embed = Embed(
             color=Color.ash_embed(),
@@ -411,7 +380,6 @@ class Projects(commands.Cog):
             return
         
         print(error)
-
 
 async def setup(bot):
     await bot.add_cog(Projects(bot))
