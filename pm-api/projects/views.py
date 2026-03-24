@@ -99,30 +99,17 @@ class ProjectBotView():
     
     def edit_project(request, id):
         name = request.data.get("name")
-        if not name:
-            return Response(
-                {"message": "Name is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
         description = request.data.get("description")
-        if not description:
-            return Response(
-                {"message": "Description is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
         user = request.data.get("user")
-        if not user:
-            return Response(
-                {"message": "Project editor (user) is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
+        channel = request.data.get("channel")
+        message = request.data.get("message")
+
         project = ProjectBoard.objects.get(id=id)
-        project.name = name
-        project.description = description
-        project.updated_by = user
+        project.name = name if name else project.name
+        project.description = description if description else project.description
+        project.updated_by = user if user else project.user
+        project.channel_id = channel if channel else project.channel_id
+        project.message_id = message if message else project.message_id
         project.save()
 
         return Response(
