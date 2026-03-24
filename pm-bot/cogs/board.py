@@ -122,8 +122,6 @@ class ProjectBoard(commands.Cog):
             traceback.print_exc()
             await prompt.send(content="❌ An unknown error preventing me to resend the project board. Please try resending the board later. If you are looking to edit the channel of the project, use the `?project edit <project_id>` command instead.")
             await board.delete()
-
-        return
     
     @resend_project_board.error
     async def resend_project_board_err(self, ctx, error):
@@ -132,6 +130,14 @@ class ProjectBoard(commands.Cog):
             return
         
         print(error)
+
+    async def locate_project_board(self, ctx, error):
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
+            return
+        
+        prompt = await ctx.send("🔄 Locating project board...")
+        return
 
 
 async def setup(bot):

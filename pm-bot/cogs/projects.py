@@ -165,9 +165,7 @@ class Projects(commands.Cog):
     @commands.hybrid_command(name="edit")
     async def edit_project(self, ctx, id):
         """
-        Edits a project and automatically updates the project board if available.
-
-        Usage: ?edit <project_id>
+        Edits a project and automatically updates the project board if available. Usage: ?edit <project_id>
         """
         
         def check(m):
@@ -196,12 +194,29 @@ class Projects(commands.Cog):
         
         name = data['name']
         description = data['description']
+        old_board_id = data['message_id']
+
+        try:
+            old_channel_id = int(data['channel_id'])
+            channel = self.bot.get_channel(old_channel_id)
+
+            if channel is None:
+                channel = await self.bot.fetch_channel(old_channel_id)
+        except NotFound:
+            pass
+        except Forbidden:
+            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel instead.")
+        except Exception as e:
+            traceback.print_exc()
+            await ctx.send("❌ Unknown Error Occured, please try again later.")
+            return
 
         while True:
             editmenu = await ctx.send(
-                "Which field you want to edit?\n\n"
+                "Which project property you want to edit?\n\n"
                 "`name` for project name\n"
                 "`desc` for project description\n"
+                "`chan` for project board channel\n"
                 "`done` for apply changes\n"
                 "`exit` for cancel edit\n"
                 )
@@ -216,10 +231,9 @@ class Projects(commands.Cog):
                     name_msg = await self.bot.wait_for("message", check=check)
                     name = name_msg.content
 
-                    await editmenu.delete()
                     await name_msg.delete()
-
-                    await menu.edit(content="New name changed")
+                    await editmenu.delete()
+                    await menu.edit(content="Name changed")
 
                 case "desc":
                     await selection.delete()
@@ -228,11 +242,23 @@ class Projects(commands.Cog):
                     desc_msg = await self.bot.wait_for("message", check=check)
                     description = desc_msg.content
 
-                    await editmenu.delete()
                     await desc_msg.delete()
+                    await editmenu.delete()
+                    await menu.edit(content="Description changed")
 
-                    await menu.edit(content="New description changed")
-                
+                case "chan":
+                    await selection.delete()
+
+                    menu = await ctx.send("Mention the new channel of where the project board located?")
+                    channel_msg = await self.bot.wait_for("message", check=check)
+                    if channel_msg.channel_mentions:
+                        channel = channel_msg.channel_mentions[0]
+                        await channel_msg.delete()
+                        await menu.edit(content="Channel changed")
+                    else:
+                        await ctx.send("❌ Channel not found or invalid. Please mention the channel by using `#` then select the channel, and not by typing the channel name without the `#`.")
+                    await editmenu.delete()
+
                 case "done":
                     await editmenu.delete()
                     await selection.delete()
@@ -242,54 +268,98 @@ class Projects(commands.Cog):
                         title=name,
                         description=description,
                     )
+                    embed.add_field(name="Channel", value=f"{channel.mention}")
                     embed.set_footer(text=data['id'])
                     menu = await ctx.send("Please confirm the edited project. To apply changes, type `yes`.", embed=embed)
-                    edit_confirm = ""
                     edit_confirm = await self.bot.wait_for("message", check=check)
                     if edit_confirm.content == "yes":
                         await menu.edit(content="🔄 Applying changes...", embeds=[])
                         await olddata.delete()
                         await edit_confirm.delete()
 
+                        new_board = None
+
                         # Sends the changes to the API first
-                        response = requests.patch(
-                        os.getenv("API_URL") + f'projects/{id}',
-                        json={
-                            'name': name,
-                            'description': description,
-                            'user': ctx.author.id
-                            }
-                        )
+                        if channel.id == old_channel_id:
+                            response = requests.patch(
+                            os.getenv("API_URL") + f'projects/{id}',
+                            json={
+                                'name': name,
+                                'description': description,
+                                'user': ctx.author.id
+                                }
+                            )
+                        else:
+                            new_board = await channel.send(content="🔄 Rendering new Project Board...")
+                            response = requests.patch(
+                            os.getenv("API_URL") + f'projects/{id}',
+                            json={
+                                'name': name,
+                                'description': description,
+                                'user': ctx.author.id,
+                                'channel': channel.id,
+                                'message': new_board.id
+                                }
+                            )
                         if response.status_code != 200:
                             await menu.edit(content="❌ Unknown Error Occured, please try again later.")
                             return
                         
-                        # Attempting to edit the project board
-                        try:
-                            new_data = response.json()['project']
-                            
-                            channel_id = int(new_data['channel_id'])
-                            message_id = int(new_data['message_id'])
- 
-                            board_channel = self.bot.get_channel(channel_id)
+                        new_data = response.json()['project']
+                        
+                        # Attempting to edit or delete and resend the project board
+                        if channel.id == old_channel_id:
+                            # if the channel is unchanged...
+                            try:
+                                # if the channel is unchanged...
+                                channel_id = int(new_data['channel_id'])
+                                message_id = int(new_data['message_id'])
+                                    
+                                board_channel = self.bot.get_channel(channel_id)
 
-                            if board_channel is None:
-                                board_channel = await self.bot.fetch_channel(channel_id)
+                                if board_channel is None:
+                                    board_channel = await self.bot.fetch_channel(channel_id)
 
-                            board = await board_channel.fetch_message(message_id)
+                                board = await board_channel.fetch_message(message_id)
 
-                            embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
-                            await board.edit(embeds=embeds)
-                        except NotFound:
-                            await ctx.send("⚠️ I cannot update the project board because the channel or the message where the project board is seems to be deleted. Please try to send the project board again to get automatic updates.")
-                        except Forbidden:
-                            await ctx.send("⚠️ I cannot update the project board because I do not have permission to access the channel or message where the project board lives. Double check my permissions and update the project board manually.")
-                        except Exception as e:
-                            traceback.print_exc()
-                            await ctx.send("⚠️ An unknown error preventing me to edit the project board. Please try updating the board manually later.")
+                                embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
+                                await board.edit(embeds=embeds)
+                                    
+                            except NotFound:
+                                await ctx.send("⚠️ I cannot update the project board because the channel or the message where the project board is seems to be deleted. Please try to send the project board again to get automatic updates.")
+                            except Forbidden:
+                                await ctx.send("⚠️ I cannot update the project board because I do not have permission to access the channel or message where the project board lives. Double check my permissions and update the project board manually.")
+                            except Exception as e:
+                                traceback.print_exc()
+                                await ctx.send("⚠️ An unknown error preventing me to edit the project board. Please try updating the board manually later.")
+                        
+                            await menu.edit(content="✅ Changes applied and project board updated!")
+                        else:
+                            #if the channel is changed...
+                            try:     
+                                # delete the old board                               
+                                old_board_channel = self.bot.get_channel(old_channel_id)
 
-                        await menu.edit(content="✅ Changes applied!")
+                                if old_board_channel is None:
+                                    old_board_channel = await self.bot.fetch_channel(old_channel_id)
 
+                                board = await old_board_channel.fetch_message(old_board_id)
+                                await board.delete()
+
+                                # send the new board
+                                if new_board is not None:
+                                    embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
+                                    await new_board.edit(content="", embeds=embeds)
+                            except NotFound:
+                                pass
+                            except Forbidden:
+                                await ctx.send("⚠️ I cannot delete the old project board because I do not have permission to access the channel where the old project board lives. Double check my permissions and delete the project board in the old channel.")
+                            except Exception as e:
+                                traceback.print_exc()
+                                await ctx.send("⚠️ An unknown error preventing me to edit the project board. Please try updating the board manually later.")
+
+                            await menu.edit(content="✅ Changes applied and project board has been moved to the new channel!")
+                        
                         return
                     else:
                         await edit_confirm.delete()
@@ -298,12 +368,12 @@ class Projects(commands.Cog):
                 case "exit":
                     await selection.delete()
                     await olddata.delete()
-                    await editmenu.edit(content="Edit cancelled")
+                    await menu.edit(content="Edit cancelled")
                     return
 
                 case _:
                     await selection.delete()
-                    await editmenu.edit(content="Invalid selection")
+                    await menu.edit(content="Invalid selection")
 
     @edit_project.error
     async def edit_project_err(self, ctx, error):
