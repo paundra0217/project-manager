@@ -131,7 +131,7 @@ class ProjectBoard(commands.Cog):
         
         print(error)
 
-
+    @commands.hybrid_command(name="locate", description="Locates the project board")
     async def locate_project_board(self, ctx, id):
         data = await get_project(ctx=ctx, id=id)
         if data is None:
@@ -149,7 +149,7 @@ class ProjectBoard(commands.Cog):
             if board_channel is None:
                 board_channel = await self.bot.fetch_channel(channel_id)
 
-            board = await board_channel.fetch_message(message_id)
+            await board_channel.fetch_message(message_id)
             board_url = f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
 
             await prompt.edit(content=f"✅ Project Board located, it is located here: {board_url}")
@@ -163,6 +163,14 @@ class ProjectBoard(commands.Cog):
 
         return
 
+
+    @locate_project_board.error
+    async def resend_project_board_err(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("❌ Project ID is required. Format: `?locate <project-id>`")
+            return
+        
+        print(error)
 
 async def setup(bot):
     await bot.add_cog(ProjectBoard(bot))
