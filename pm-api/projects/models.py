@@ -11,6 +11,7 @@ class ProjectBoard(TimeStampedModel):
     channel_id = models.CharField(max_length=24)
     message_id = models.CharField(max_length=24, default="")
     updated_by = models.CharField(max_length=24, default="")
+    is_archived = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
     objects = ActiveManager()
