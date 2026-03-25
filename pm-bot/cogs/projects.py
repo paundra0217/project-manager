@@ -36,6 +36,20 @@ class Projects(commands.Cog):
                 
                 await self.edit_project(ctx=ctx, id=id)
 
+            case "archive":
+                if id is None:
+                    await ctx.send("❌ Project ID is required for `archive` argument. Format: `?project archive <project-id>`\n\n")
+                    return
+                
+                await self.archive_project(ctx=ctx, id=id)
+                
+            case "unarchive":
+                if id is None:
+                    await ctx.send("❌ Project ID is required for `unarchive` argument. Format: `?project unarchive <project-id>`\n\n")
+                    return
+                
+                await self.unarchive_project(ctx=ctx, id=id)
+
             case "delete":
                 if id is None:
                     await ctx.send("❌ Project ID is required for `delete` argument. Format: `?project delete <project-id>`\n\n")
@@ -50,6 +64,8 @@ class Projects(commands.Cog):
                            "`?project list` - list the projects within a server.\n"
                            "`?project details <project-id>` - view the details of the project.\n"
                            "`?project edit <project-id>` - edits a project and attempt to update the board automatically.\n"
+                           "`?project archive <project-id>` - archives the project which makes it read-only and unmodifiable state.\n"
+                           "`?project unarchive <project-id>` - unarchives the project which returns it to normal modifiable state.\n"
                            "`?project delete <project-id>` - deletes the project and its content, this action cannot be undone.\n")
     
     @project_command_entry.error
@@ -61,6 +77,8 @@ class Projects(commands.Cog):
                            "`?project list` - list the projects within a server.\n"
                            "`?project details <project-id>` - view the details of the project.\n"
                            "`?project edit <project-id>` - edits a project and attempt to update the board automatically.\n"
+                           "`?project archive <project-id>` - archives the project which makes it read-only and unmodifiable state.\n"
+                           "`?project unarchive <project-id>` - unarchives the project which returns it to normal modifiable state.\n"
                            "`?project delete <project-id>` - deletes the project and its content, this action cannot be undone.\n")
             return
         
@@ -411,11 +429,77 @@ class Projects(commands.Cog):
                     await selection.delete()
                     await menu.edit(content="Invalid selection")
 
+    async def archive_project(self, ctx, id):
+        """
+        Archives the project. Usage: ?project archive <project_id>
+        """
+        def check(m):
+            return m.author == ctx.author and m.channel == ctx.channel
+        
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
+            return
+        
+        if data['is_archived']:
+            await ctx.send("❌ Project already archived!")
+            return
+
+        embed = Embed(
+            color=Color.ash_embed(),
+            title=data['name'],
+            description=data['description'],
+        )
+        embed.set_footer(text=data['id'])
+
+        prompt = await ctx.send(f"You are about to archiving this project, which makes the project in read-only and unmodifiable state, including editing project details and managing tasks. Type `{data['name']}` to continue.", embed=embed)
+        confirm = await self.bot.wait_for("message", check=check)
+        if confirm.content != data['name']:
+            await ctx.send(f"❌ Deletion cancelled. If you think this is a mistake, delete again but type `{data['name']}` when prompted to confirm.")
+            await prompt.delete()
+            await confirm.delete()
+            return
+        
+        await prompt.edit(content="🔄 Archiving project...", embeds=[])    
+        await confirm.delete()
+
+        response = requests.patch(os.getenv("API_URL") + f'projects/{id}', json={
+            'user': ctx.author.id,
+            "is_archived": True
+        })
+
+        if response.status_code != 200:
+            await prompt.edit(content="❌ Unknown Error Occured, please try again later.")
+            return
+        
+        await prompt.edit(content="✅ Project archived!")
+
+    async def unarchive_project(self, ctx, id):
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
+            return
+        
+        if data['is_archived'] is False:
+            await ctx.send("❌ Project is not archived!")
+            return
+
+        prompt = await ctx.send("🔄 Unarchiving project...")    
+
+        response = requests.patch(os.getenv("API_URL") + f'projects/{id}', json={
+            'user': ctx.author.id,
+            "is_archived": False
+        })
+
+        if response.status_code != 200:
+            await prompt.edit(content="❌ Unknown Error Occured, please try again later.")
+            return
+
+        await prompt.edit(content="✅ Project unarchived!")
+
+
     async def delete_project(self, ctx, id):
         """
         Deletes the project board and its content. Usage: ?delete <project_id>
         """
-
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
         
