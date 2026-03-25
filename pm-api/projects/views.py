@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view, permission_classes, action
 class ProjectBotView():
     @api_view(["GET"])
     def get_project_list(request, guild_id):
-        projects = ProjectBoard.objects.filter(server_id=guild_id)
+        projects = ProjectBoard.objects.filter(guild_id=guild_id)
 
         return Response(
                 {"projects": ProjectBoardSerializer(projects, many=True).data},
@@ -31,24 +31,24 @@ class ProjectBotView():
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        server = request.data.get("server")
-        if not server:
+        guild = request.data.get("guild")
+        if not guild:
             return Response(
-                {"message": "Server is missing"},
+                {"message": "Guild ID is missing"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         channel = request.data.get("channel")
         if not channel:
             return Response(
-                {"message": "Channel is missing"},
+                {"message": "Channel ID is missing"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
         message = request.data.get("message")
         if not message:
             return Response(
-                {"message": "Message is missing"},
+                {"message": "Message ID is missing"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
@@ -62,7 +62,7 @@ class ProjectBotView():
         project = ProjectBoard.objects.create(
             name=name, 
             description=description, 
-            server_id=server, 
+            guild_id=guild, 
             channel_id=channel,
             message_id=message,
             updated_by=user

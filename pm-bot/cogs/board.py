@@ -131,12 +131,36 @@ class ProjectBoard(commands.Cog):
         
         print(error)
 
-    async def locate_project_board(self, ctx, error):
+
+    async def locate_project_board(self, ctx, id):
         data = await get_project(ctx=ctx, id=id)
         if data is None:
             return
         
         prompt = await ctx.send("🔄 Locating project board...")
+
+        guild_id = int(data['guild_id'])
+        channel_id = int(data['channel_id'])
+        message_id = int(data['message_id'])
+
+        try: 
+            print("locating board message")
+            board_channel = self.bot.get_channel(channel_id)
+            if board_channel is None:
+                board_channel = await self.bot.fetch_channel(channel_id)
+
+            board = await board_channel.fetch_message(message_id)
+            board_url = f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+
+            await prompt.edit(content=f"✅ Project Board located, it is located here: {board_url}")
+        except NotFound:
+            await prompt.edit(content="❌ I cannot locate the project board because the message of the project board is seems to be deleted. Please resend the project board by using `?resend <project_id>` command.")
+        except Forbidden:
+            await prompt.edit(content="❌ I cannot locate the project board because I do not have permission to access the channel of the project board. Double check my permissions and locate the project board again.")
+        except Exception as e:
+            traceback.print_exc()
+            await prompt.edit(content="❌ An unknown error preventing me to locate the project board. Please try locating the board later.")
+
         return
 
 

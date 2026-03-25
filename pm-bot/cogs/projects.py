@@ -13,12 +13,63 @@ class Projects(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="create", description="Creates a project")
+    @commands.hybrid_command(name="project", description="main command for all related to managing project data")
+    async def project_command_entry(self, ctx, type, id = None):
+        match type:
+            case "create":
+                await self.create_project(ctx=ctx)
+            
+            case "list":
+                await self.list_projects(ctx=ctx)
+
+            case "details":
+                if id is None:
+                    await ctx.send("❌ Project ID is required for `details` argument. Format: `?project details <project-id>`\n\n")
+                    return
+                    
+                await self.project_details(ctx=ctx, id=id)
+
+            case "edit":
+                if id is None:
+                    await ctx.send("❌ Project ID is required for `edit` argument. Format: `?project edit <project-id>`\n\n")
+                    return
+                
+                await self.edit_project(ctx=ctx, id=id)
+
+            case "delete":
+                if id is None:
+                    await ctx.send("❌ Project ID is required for `delete` argument. Format: `?project delete <project-id>`\n\n")
+                    return
+                
+                await self.delete_project(ctx=ctx, id=id)
+            
+            case _:
+                await ctx.send("❌ Invalid argument choice. Format: `?project <create|edit|delete|list|details> [project-id]`\n\n"
+                           "`?project` command guide:\n"
+                           "`?project create` - creates a new empty project.\n"
+                           "`?project list` - list the projects within a server.\n"
+                           "`?project details <project-id>` - view the details of the project.\n"
+                           "`?project edit <project-id>` - edits a project and attempt to update the board automatically.\n"
+                           "`?project delete <project-id>` - deletes the project and its content, this action cannot be undone.\n")
+    
+    @project_command_entry.error
+    async def project_command_err(self, ctx, err):
+        if isinstance(err, commands.MissingRequiredArgument):
+            await ctx.send("❌ Missing required argument. Format: `?project <create|edit|delete|list|details> [project-id]`\n\n"
+                           "`?project` command guide:\n"
+                           "`?project create` - creates a new empty project.\n"
+                           "`?project list` - list the projects within a server.\n"
+                           "`?project details <project-id>` - view the details of the project.\n"
+                           "`?project edit <project-id>` - edits a project and attempt to update the board automatically.\n"
+                           "`?project delete <project-id>` - deletes the project and its content, this action cannot be undone.\n")
+            return
+        
+        print(err)
+        return
+    
     async def create_project(self, ctx):
         """
-        Create a new project.
-
-        Usage: ?create
+        Create a new project. Usage: ?create
         """
 
         def check(m):
@@ -67,7 +118,7 @@ class Projects(commands.Cog):
             json={
                 'name': name,
                 'description': description,
-                'server': ctx.message.guild.id,
+                'guild': ctx.message.guild.id,
                 'channel': project_channel.id,
                 'message': board.id,
                 'user': ctx.author.id
@@ -97,12 +148,9 @@ class Projects(commands.Cog):
             await board.delete()
             return
 
-    @commands.hybrid_command(name="list", description="List all the projects in the server")
     async def list_projects(self, ctx):
         """
-        Lists all the projects.
-
-        Usage: ?list
+        Lists all the projects within a server. Usage: ?list
         """
         response = requests.get(os.getenv("API_URL") + f'projects/list/{ctx.message.guild.id}')
 
@@ -129,13 +177,10 @@ class Projects(commands.Cog):
 
         await ctx.send("Only first 25 projects are displayed", embed=embed)
         return
-    
-    @commands.hybrid_command(name="details")
+
     async def project_details(self, ctx, id):
         """
-        Get a project details based on the ID.
-
-        Usage: ?details <project-id> 
+        Get a project details based on the ID. Usage: ?details <project-id> 
         """
 
         try:
@@ -154,15 +199,6 @@ class Projects(commands.Cog):
         except:
             await ctx.send("❌ Unknown Error Occured, please try again later.")
 
-    @project_details.error
-    async def project_details_err(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Project ID is required. Format: `?list [project-id]`")
-            return
-        
-        print(error)
-
-    @commands.hybrid_command(name="edit")
     async def edit_project(self, ctx, id):
         """
         Edits a project and automatically updates the project board if available. Usage: ?edit <project_id>
@@ -375,20 +411,9 @@ class Projects(commands.Cog):
                     await selection.delete()
                     await menu.edit(content="Invalid selection")
 
-    @edit_project.error
-    async def edit_project_err(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Project ID is required. Format: `?edit <project-id>`")
-            return
-        
-        print(error)
-
-    @commands.hybrid_command(name="delete")
     async def delete_project(self, ctx, id):
         """
-        Deletes the project board.
-
-        Usage: ?delete <project_id>
+        Deletes the project board and its content. Usage: ?delete <project_id>
         """
 
         def check(m):
@@ -442,14 +467,6 @@ class Projects(commands.Cog):
             await ctx.send("⚠️ An unknown error preventing me to delete the project board. Please delete the board manually.")
 
         await prompt.edit(content="✅ Project deleted!")
-    
-    @delete_project.error
-    async def delete_project_err(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Project ID is required. Format: `?delete <project-id>`")
-            return
-        
-        print(error)
 
 async def setup(bot):
     await bot.add_cog(Projects(bot))

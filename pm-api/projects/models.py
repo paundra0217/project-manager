@@ -5,7 +5,7 @@ import uuid
 # Create your models here.
 class ProjectBoard(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    server_id = models.CharField(max_length=24)
+    guild_id = models.CharField(max_length=24)
     name = models.CharField(max_length=128)
     description = models.CharField(max_length=1024)
     channel_id = models.CharField(max_length=24)
