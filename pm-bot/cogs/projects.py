@@ -228,6 +228,10 @@ class Projects(commands.Cog):
         data = await get_project(ctx=ctx, id=id)
         if data is None:
             return
+        
+        if data['is_archived']:
+            await ctx.send("❌ This project is archived, meaning it is in read-only and unmodifiable state. If you want to edit this project, unarchive first by using `?project unarchive <project-id>` command.")
+            return
 
         embed = Embed(
             color=Color.ash_embed(),
@@ -494,7 +498,6 @@ class Projects(commands.Cog):
             return
 
         await prompt.edit(content="✅ Project unarchived!")
-
 
     async def delete_project(self, ctx, id):
         """
