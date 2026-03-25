@@ -517,11 +517,10 @@ class Projects(commands.Cog):
         )
         embed.set_footer(text=data['id'])
 
-        prompt = await ctx.send(f"Here is the project you want to delete. **Deleting the project will delete the project and it's contents forever and this action cannot be undone!** Consider archiving the project instead. Type `yes` to continue.", embed=embed)
+        prompt = await ctx.send(f"You are about to delete this project, which means **deleting the project and it's contents including tasks forever and this action cannot be undone!** Consider archiving the project instead. Type `{data['name']}` to continue.", embed=embed)
         confirm = await self.bot.wait_for("message", check=check)
-        if confirm.content != "yes":
-            await ctx.send("❌ Deletion cancelled. If you think this is a mistake, delete again but type `yes` when prompted to confirm. You may want to conside archiving the project instead because deletion cannot be undone.")
-            await prompt.delete()
+        if confirm.content != data['name']:
+            await prompt.edit(content=f"❌ Deletion cancelled. If you think this is a mistake, delete again but type `{data['name']}` when prompted to confirm. You may want to conside archiving the project instead because deletion cannot be undone.", embeds=[])
             await confirm.delete()
             return
 
