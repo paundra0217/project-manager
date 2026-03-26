@@ -62,6 +62,10 @@ class ProjectBoard(commands.Cog):
         if data is None:
             return
         
+        if data['is_archived']:
+            await ctx.send("❌ Cannot resend project board because it's archived, unarchive this project if resending is needed.")
+            return
+        
         prompt = await ctx.send("🔄 Resending project board...")
 
         channel_id = int(data['channel_id'])
