@@ -87,7 +87,7 @@ class Projects(commands.Cog):
     
     async def create_project(self, ctx):
         """
-        Create a new project. Usage: ?create
+        Create a new project. Usage: ?project create
         """
 
         def check(m):
@@ -158,7 +158,7 @@ class Projects(commands.Cog):
 
     async def list_projects(self, ctx):
         """
-        Lists all the projects within a server. Usage: ?list
+        Lists all the projects within a server. Usage: ?project list
         """
         response = requests.get(os.getenv("API_URL") + f'projects/list/{ctx.message.guild.id}')
 
@@ -188,28 +188,36 @@ class Projects(commands.Cog):
 
     async def project_details(self, ctx, id):
         """
-        Get a project details based on the ID. Usage: ?details <project-id> 
+        Get a project details based on the ID. Usage: ?project details <project-id> 
         """
-
+        data = await get_project(ctx=ctx, id=id)
+        if data is None:
+            return
+        
+        channel = None
         try:
-            data = await get_project(ctx=ctx, id=id)
-            if data is None:
-                return
+            old_channel_id = int(data['channel_id'])
+            channel = self.bot.get_channel(old_channel_id)
 
-            embed = Embed(
-                color=Color.ash_embed(),
-                title=data['name'],
-                description=data['description'],
-            )
-            embed.set_footer(text=data['id'])
+            if channel is None:
+                channel = await self.bot.fetch_channel(old_channel_id)
+        except NotFound:
+            pass
+        except Forbidden:
+            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel if needed.")
+        except Exception as e:
+            traceback.print_exc()
+            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
 
-            await ctx.send(f"Project Details for {data['name']}", embed=embed)
-        except:
-            await ctx.send("❌ Unknown Error Occured, please try again later.")
+        embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
+        if channel is not None:
+            embed.add_field(name="Project Channel Board", value=f"{channel.mention}")
+
+        await ctx.send(f"Project Details for {data['name']}", embed=embed)
 
     async def edit_project(self, ctx, id):
         """
-        Edits a project and automatically updates the project board if available. Usage: ?edit <project_id>
+        Edits a project and automatically updates the project board if available. Usage: ?project edit <project_id>
         """
         
         def check(m):
@@ -435,13 +443,25 @@ class Projects(commands.Cog):
         if data['is_archived']:
             await ctx.send("❌ Project already archived!")
             return
+        
+        channel = None
+        try:
+            old_channel_id = int(data['channel_id'])
+            channel = self.bot.get_channel(old_channel_id)
 
-        embed = Embed(
-            color=Color.ash_embed(),
-            title=data['name'],
-            description=data['description'],
-        )
-        embed.set_footer(text=data['id'])
+            if channel is None:
+                channel = await self.bot.fetch_channel(old_channel_id)
+        except NotFound:
+            pass
+        except Forbidden:
+            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel before archiving.")
+        except Exception as e:
+            traceback.print_exc()
+            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+
+        embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
+        if channel is not None:
+            embed.add_field(name="Project Channel Board", value=f"{channel.mention}")
 
         prompt = await ctx.send(f"You are about to archiving this project, which makes the project in read-only and unmodifiable state, including editing project details and managing tasks. Type `{data['name']}` to continue.", embed=embed)
         confirm = await self.bot.wait_for("message", check=check)
@@ -489,7 +509,7 @@ class Projects(commands.Cog):
 
     async def delete_project(self, ctx, id):
         """
-        Deletes the project board and its content. Usage: ?delete <project_id>
+        Deletes the project board and its content. Usage: ?project delete <project_id>
         """
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
@@ -498,12 +518,24 @@ class Projects(commands.Cog):
         if data is None:
             return
 
-        embed = Embed(
-            color=Color.ash_embed(),
-            title=data['name'],
-            description=data['description'],
-        )
-        embed.set_footer(text=data['id'])
+        channel = None
+        try:
+            old_channel_id = int(data['channel_id'])
+            channel = self.bot.get_channel(old_channel_id)
+
+            if channel is None:
+                channel = await self.bot.fetch_channel(old_channel_id)
+        except NotFound:
+            pass
+        except Forbidden:
+            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions.")
+        except Exception as e:
+            traceback.print_exc()
+            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+
+        embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
+        if channel is not None:
+            embed.add_field(name="Project Channel Board", value=f"{channel.mention}")
 
         prompt = await ctx.send(f"You are about to delete this project, which means **deleting the project and it's contents including tasks forever and this action cannot be undone!** Consider archiving the project instead. Type `{data['name']}` to continue.", embed=embed)
         confirm = await self.bot.wait_for("message", check=check)
@@ -539,7 +571,7 @@ class Projects(commands.Cog):
         except Exception as e:
             traceback.print_exc()
             await ctx.send("⚠️ An unknown error preventing me to delete the project board. Please delete the board manually.")
-
+        
         await prompt.edit(content="✅ Project deleted!")
 
 async def setup(bot):
