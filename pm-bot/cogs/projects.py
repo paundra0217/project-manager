@@ -110,20 +110,6 @@ class Projects(commands.Cog):
         else:
             await ctx.send("❌ Channel not found or invalid. Please mention the channel by using `#` then select the channel, and not by typing the channel name without the `#`.")
             return
-        
-        # Confirm creation
-        await ctx.send(
-                f"Please check if the details below is correct\n"
-                f"Name: {name}\n"
-                f"Description: {description}\n"
-                f"Channel: {project_channel.mention}\n\n"
-                "To confirm, type `yes`"
-            )
-
-        confirm = await self.bot.wait_for("message", check=check)
-        if confirm.content != "yes":
-            await ctx.send("❌ Creation cancelled. If you think this is a mistake, create again but type `yes` when prompted to confirm.")
-            return
 
         message = await ctx.send("🔄 Creating project...")
 
@@ -136,12 +122,17 @@ class Projects(commands.Cog):
             json={
                 'name': name,
                 'description': description,
-                'guild': ctx.message.guild.id,
-                'channel': project_channel.id,
-                'message': board.id,
-                'user': ctx.author.id
+                'guild_id': ctx.message.guild.id,
+                'channel_id': project_channel.id,
+                'message_id': board.id,
+                'updated_by': ctx.author.id
                 }
             )
+
+            if response.status_code == 409:
+                await message.edit(content="❌ Channel already used by other project. Please mention other channel that is unused.")
+                await board.delete()
+                return
 
             if response.status_code != 201:
                 print(response.json())
@@ -153,13 +144,12 @@ class Projects(commands.Cog):
 
             await board.edit(content="", embed=parse_project_embed(name=name, description=description, project_id=project_id))
 
-            await message.edit(content=
-                f"✅ Project created!\n"
-                f"Name: {name}\n"
-                f"Description: {description}\n"
-                f"Channel: {project_channel.mention}\n"
-                f"Project ID: {project_id}\n\n"
-                "Please take note of the project ID for manipulating project's content (e.g. task items, project column, etc.). Project ID can also be found in the project board."
+            embed = parse_project_embed(name=name, description=description, project_id=project_id)
+            embed.add_field(name="Project Board Channel", value=f"{project_channel.mention}")
+
+            await message.edit(
+                content=f"✅ Project created! Please take note of the project ID for manipulating project's content (e.g. task items, project column, etc.). Project ID can also be found in the project board.",
+                embed=embed
             )
         except:
             await message.edit(content="❌ Cannot create project. Please try again later.")

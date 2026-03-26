@@ -17,59 +17,24 @@ class ProjectBotView():
 
     @api_view(["POST"])
     def create_project(request):
-        name = request.data.get("name")
-        if not name:
-            return Response(
-                {"message": "Name is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        description = request.data.get("description")
-        if not description:
-            return Response(
-                {"message": "Description is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        guild = request.data.get("guild")
-        if not guild:
-            return Response(
-                {"message": "Guild ID is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = ProjectBoardSerializer(data=request.data)
 
-        channel = request.data.get("channel")
-        if not channel:
-            return Response(
-                {"message": "Channel ID is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        message = request.data.get("message")
-        if not message:
+        guild = serializer.validated_data["guild_id"]
+        channel = serializer.validated_data["channel_id"]
+
+        if ProjectBoard.objects.filter(guild_id=guild, channel_id=channel, is_deleted=False).exists():
             return Response(
-                {"message": "Message ID is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        user = request.data.get("user")
-        if not user:
-            return Response(
-                {"message": "Project creator (user) is missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        project = ProjectBoard.objects.create(
-            name=name, 
-            description=description, 
-            guild_id=guild, 
-            channel_id=channel,
-            message_id=message,
-            updated_by=user
-            )
+                    {"message": "Channel already occupied by other project board."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        project = serializer.save()
 
         return Response(
-                {"id": project.id},
+                ProjectBoardSerializer(project).data,
                 status=status.HTTP_201_CREATED,
             )
     
