@@ -172,16 +172,27 @@ class Projects(commands.Cog):
         )
 
         for project in response.json()['projects']:
-            iso_time = project['created_at']
-            dt = datetime.fromisoformat(iso_time.replace("Z", "+00:00"))
-            unix_timestamp = int(dt.timestamp())
+            iso_time_create = project['created_at']
+            dt_create = datetime.fromisoformat(iso_time_create.replace("Z", "+00:00"))
+            unix_create = int(dt_create.timestamp())
 
-            embed.add_field(name=f"{project['name']} ({project['id']})", 
-                            value=
-                                f"Created: <t:{unix_timestamp}:F>\n"
-                                f"```{project['description']}```\n",
-                            inline=False
-                            )
+            if project['is_archived']:
+                iso_time_archive = project['updated_at'] # updated_at will be as archived time because last update is archived
+                dt_archive = datetime.fromisoformat(iso_time_archive.replace("Z", "+00:00"))
+                embed.add_field(name=f"[Archived] {project['name']} ({project['id']})", 
+                                value=
+                                    f"Created: <t:{unix_create}:F>\n"
+                                    f"Archived: <t:{int(dt_archive.timestamp())}:F>\n"
+                                    f"```{project['description']}```\n",
+                                inline=False
+                                )
+            else:
+                embed.add_field(name=f"{project['name']} ({project['id']})", 
+                                value=
+                                    f"Created: <t:{unix_create}:F>\n"
+                                    f"```{project['description']}```\n",
+                                inline=False
+                                )
 
         await ctx.send("Only first 25 projects are displayed", embed=embed)
         return
@@ -571,7 +582,7 @@ class Projects(commands.Cog):
         except Exception as e:
             traceback.print_exc()
             await ctx.send("⚠️ An unknown error preventing me to delete the project board. Please delete the board manually.")
-        
+
         await prompt.edit(content="✅ Project deleted!")
 
 async def setup(bot):
