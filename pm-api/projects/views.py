@@ -72,11 +72,11 @@ class ProjectBotView():
     def edit_project(request, id):
         name = request.data.get("name")
         description = request.data.get("description")
-        channel = request.data.get("channel")
-        message = request.data.get("message")
+        channel = request.data.get("channel_id")
+        message = request.data.get("message_id")
         is_archived = request.data.get("is_archived")
 
-        user = request.data.get("user")
+        user = request.data.get("updated_by")
         if not user:
             return Response(
                 {"message": "User ID is missing"},
@@ -85,6 +85,13 @@ class ProjectBotView():
 
         try:
             project = ProjectBoard.objects.get(id=id)
+            if project.channel_id != channel:
+                if ProjectBoard.objects.filter(guild_id=project.guild_id, channel_id=channel, is_deleted=False).exists():
+                    return Response(
+                        {"message": "Channel already occupied by other project board."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+            
             if project.is_archived is True:
                 if is_archived is not None and is_archived is False:
                     project.updated_by = user

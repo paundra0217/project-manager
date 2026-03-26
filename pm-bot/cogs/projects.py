@@ -223,26 +223,10 @@ class Projects(commands.Cog):
             await ctx.send("❌ This project is archived, meaning it is in read-only and unmodifiable state. If you want to edit this project, unarchive first by using `?project unarchive <project-id>` command.")
             return
 
-        embed = Embed(
-            color=Color.ash_embed(),
-            title=data['name'],
-            description=data['description'],
-        )
-        embed.set_footer(text=data['id'])
-
-        olddata = await ctx.send(f"Here is the project you want to edit. Type `yes` to continue.", embed=embed)
-        confirm = await self.bot.wait_for("message", check=check)
-        if confirm.content != "yes":
-            await ctx.send("❌ Edit cancelled. If you think this is a mistake, edit again but type `yes` when prompted to confirm.")
-            await olddata.delete()
-            await confirm.delete()
-            return
-    
-        await confirm.delete()
-        
         name = data['name']
         description = data['description']
         old_board_id = data['message_id']
+        channel = None
 
         try:
             old_channel_id = int(data['channel_id'])
@@ -256,8 +240,21 @@ class Projects(commands.Cog):
             await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel instead.")
         except Exception as e:
             traceback.print_exc()
-            await ctx.send("❌ Unknown Error Occured, please try again later.")
+            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+
+        embed = parse_project_embed(name=name, description=description, project_id=data['id'])
+        if channel is not None:
+            embed.add_field(name="Project Board Channel", value=f"{channel.mention}")
+
+        olddata = await ctx.send(f"Here is the project you want to edit. Type `yes` to continue.", embed=embed)
+        confirm = await self.bot.wait_for("message", check=check)
+        if confirm.content != "yes":
+            await ctx.send("❌ Edit cancelled. If you think this is a mistake, edit again but type `yes` when prompted to confirm.")
+            await olddata.delete()
+            await confirm.delete()
             return
+    
+        await confirm.delete()
 
         while True:
             editmenu = await ctx.send(
@@ -311,18 +308,14 @@ class Projects(commands.Cog):
                     await editmenu.delete()
                     await selection.delete()
 
-                    embed = Embed(
-                        color=Color.ash_embed(),
-                        title=name,
-                        description=description,
-                    )
-                    embed.add_field(name="Channel", value=f"{channel.mention}")
-                    embed.set_footer(text=data['id'])
+                    embed = parse_project_embed(name=name, description=description, project_id=data['id'])
+                    if channel is not None:
+                        embed.add_field(name="Project Board Channel", value=f"{channel.mention}")
+
                     menu = await ctx.send("Please confirm the edited project. To apply changes, type `yes`.", embed=embed)
                     edit_confirm = await self.bot.wait_for("message", check=check)
                     if edit_confirm.content == "yes":
                         await menu.edit(content="🔄 Applying changes...", embeds=[])
-                        await olddata.delete()
                         await edit_confirm.delete()
 
                         new_board = None
@@ -334,7 +327,7 @@ class Projects(commands.Cog):
                             json={
                                 'name': name,
                                 'description': description,
-                                'user': ctx.author.id
+                                'updated_by': ctx.author.id
                                 }
                             )
                         else:
@@ -344,15 +337,21 @@ class Projects(commands.Cog):
                             json={
                                 'name': name,
                                 'description': description,
-                                'user': ctx.author.id,
-                                'channel': channel.id,
-                                'message': new_board.id
+                                'channel_id': channel.id,
+                                'message_id': new_board.id,
+                                'updated_by': ctx.author.id
                                 }
                             )
+                        if response.status_code == 409:
+                            await new_board.delete()
+                            await menu.edit(content="❌ The channel is already used by other project. Please mention other channel.")
+                            continue
+
                         if response.status_code != 200:
                             await menu.edit(content="❌ Unknown Error Occured, please try again later.")
                             return
                         
+                        await olddata.delete()
                         new_data = response.json()['project']
                         
                         # Attempting to edit or delete and resend the project board
@@ -393,11 +392,6 @@ class Projects(commands.Cog):
 
                                 board = await old_board_channel.fetch_message(old_board_id)
                                 await board.delete()
-
-                                # send the new board
-                                if new_board is not None:
-                                    embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
-                                    await new_board.edit(content="", embeds=embeds)
                             except NotFound:
                                 pass
                             except Forbidden:
@@ -405,6 +399,10 @@ class Projects(commands.Cog):
                             except Exception as e:
                                 traceback.print_exc()
                                 await ctx.send("⚠️ An unknown error preventing me to edit the project board. Please try updating the board manually later.")
+                            # send the new board
+                            if new_board is not None:
+                                embeds = [parse_project_embed(name=new_data['name'], description=new_data['description'], project_id=new_data['id'])]
+                                await new_board.edit(content="", embeds=embeds)
 
                             await menu.edit(content="✅ Changes applied and project board has been moved to the new channel!")
                         
@@ -416,12 +414,12 @@ class Projects(commands.Cog):
                 case "exit":
                     await selection.delete()
                     await olddata.delete()
-                    await menu.edit(content="Edit cancelled")
+                    await editmenu.edit(content="Edit cancelled")
                     return
 
                 case _:
                     await selection.delete()
-                    await menu.edit(content="Invalid selection")
+                    await editmenu.edit(content="Invalid selection")
 
     async def archive_project(self, ctx, id):
         """
