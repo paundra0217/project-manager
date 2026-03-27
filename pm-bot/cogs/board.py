@@ -138,7 +138,7 @@ class ProjectBoard(commands.Cog):
             board = await board_channel.send("🔄 Resending project board...")
 
             response = requests.patch(
-                os.getenv("API_URL") + f'projects/{id}',
+                os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}',
                 json={
                     'message': board.id,
                     'updated_by': ctx.author.id

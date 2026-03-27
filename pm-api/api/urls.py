@@ -1,9 +1,9 @@
 from django.urls import path, include
 
 urlpatterns = [
-    # Auth
-    path('projects/', include('projects.urls')),
+    # Projects
+    path('guilds/<str:guild_id>/projects/', include('projects.urls')),
 
-    # User Task
+    # Tasks
     path('tasks/', include('tasks.urls')),
 ]

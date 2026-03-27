@@ -118,14 +118,13 @@ class Projects(commands.Cog):
 
         try:
             response = requests.post(
-            os.getenv("API_URL") + 'projects/',
+            os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/',
             json={
                 'name': name,
                 'description': description,
-                'guild_id': ctx.message.guild.id,
                 'channel_id': project_channel.id,
                 'message_id': board.id,
-                'updated_by': ctx.author.id
+                'user': ctx.author.id
                 }
             )
 
@@ -160,7 +159,7 @@ class Projects(commands.Cog):
         """
         Lists all the projects within a server. Usage: ?project list
         """
-        response = requests.get(os.getenv("API_URL") + f'projects/list/{ctx.message.guild.id}')
+        response = requests.get(os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/')
 
         if response.status_code != 200:
             await ctx.send("❌ Cannot obtain list of projects, please try again later.")
@@ -342,7 +341,7 @@ class Projects(commands.Cog):
                         # Sends the changes to the API first
                         if channel.id == old_channel_id:
                             response = requests.patch(
-                            os.getenv("API_URL") + f'projects/{id}',
+                            os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}',
                             json={
                                 'name': name,
                                 'description': description,
@@ -352,7 +351,7 @@ class Projects(commands.Cog):
                         else:
                             new_board = await channel.send(content="🔄 Rendering new Project Board...")
                             response = requests.patch(
-                            os.getenv("API_URL") + f'projects/{id}',
+                            os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}',
                             json={
                                 'name': name,
                                 'description': description,
@@ -485,7 +484,7 @@ class Projects(commands.Cog):
         await prompt.edit(content="🔄 Archiving project...", embeds=[])    
         await confirm.delete()
 
-        response = requests.patch(os.getenv("API_URL") + f'projects/{id}', json={
+        response = requests.patch(os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}', json={
             'user': ctx.author.id,
             "is_archived": True
         })
@@ -507,7 +506,7 @@ class Projects(commands.Cog):
 
         prompt = await ctx.send("🔄 Unarchiving project...")    
 
-        response = requests.patch(os.getenv("API_URL") + f'projects/{id}', json={
+        response = requests.patch(os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}', json={
             'user': ctx.author.id,
             "is_archived": False
         })
@@ -558,9 +557,9 @@ class Projects(commands.Cog):
         await prompt.edit(content="🔄 Deleting project...", embeds=[])    
         await confirm.delete()
 
-        response = requests.delete(os.getenv("API_URL") + f'projects/{id}')
+        response = requests.delete(os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}')
         if response.status_code != 204:
-            await prompt.edit("❌ Unknown Error Occured, please try again later.")
+            await prompt.edit(content="❌ Unknown Error Occured, please try again later.")
             return
 
         try:                            

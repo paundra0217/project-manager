@@ -4,7 +4,7 @@ import os
 
 async def get_project(ctx, id):
     try:
-        response = requests.get(os.getenv("API_URL") + f'projects/{id}')
+        response = requests.get(os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}')
 
         if response.status_code == 404:
             await ctx.send("❌ Project not found, please double check if your ID does have any typos.")
