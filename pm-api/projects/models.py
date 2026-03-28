@@ -26,6 +26,9 @@ class BoardColumn(TimeStampedModel):
     project = models.ForeignKey(ProjectBoard, on_delete=models.CASCADE)
     name = models.CharField(max_length=128)
     color = models.CharField(max_length=12)
+    order = models.IntegerField(default=0)
+    created_by = models.CharField(max_length=24, default="")
+    updated_by = models.CharField(max_length=24, default="")
     is_deleted = models.BooleanField(default=False)
 
     objects = ActiveManager()

@@ -1,9 +1,18 @@
-from .models import ProjectBoard
-from .serializers import ProjectBoardSerializer, ProjectBoardCreateSerializer, ProjectBoardEditSerializer
+from .models import ProjectBoard, BoardColumn
+from .serializers import (
+    ProjectBoardSerializer, 
+    ProjectBoardCreateSerializer, 
+    ProjectBoardEditSerializer,
+    BoardColumnSerializer,
+    BoardColumnCreateSerializer,
+    BoardColumnEditSerializer
+    )
 import traceback
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from django.db import transaction
+from django.db.models import Max
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 class ProjectBotView():
@@ -70,7 +79,7 @@ class ProjectBotView():
             responses=ProjectBoardSerializer
         ),
         patch=extend_schema(
-            description="Edit the project data by ID",
+            description="Edit the project data",
             request=ProjectBoardEditSerializer,
             responses=ProjectBoardSerializer
         ),
@@ -171,3 +180,132 @@ class ProjectBotView():
         return Response(
                 status=status.HTTP_204_NO_CONTENT,
             )
+
+    @extend_schema_view(
+        get=extend_schema(
+            description="Get the list of columns within a project ID",
+            responses=BoardColumnSerializer
+        ),
+        post=extend_schema(
+            description="Creates a new column in a Project",
+            request=BoardColumnCreateSerializer,
+            responses=BoardColumnSerializer
+        ),
+    )
+    @api_view(['GET', 'POST'])
+    def column_entry(request, guild_id, project_id):
+        match request.method:
+            case 'GET':
+                return ProjectBotView.list_columns(request, guild_id, project_id)
+
+            case 'POST':
+                return ProjectBotView.add_column(request, guild_id, project_id)
+            
+            case _:
+                return Response(
+                    {"message": "Method not allowed"},
+                    status=status.HTTP_405_METHOD_NOT_ALLOWED,
+                )
+
+    def list_columns(request, guild_id, project_id):
+        project = ProjectBoard.objects.filter(guild_id=guild_id, id=project_id).first()
+        if project is None:
+            return Response(
+                    {"message": "Project not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        
+        columns = BoardColumn.objects.filter(project=project)
+        serialized = BoardColumnSerializer(columns, many=True).data
+        return Response(
+                {
+                    "count": len(serialized),
+                    "columns": serialized
+                },
+                status=status.HTTP_200_OK,
+            )
+    
+    def add_column(request, guild_id, project_id):
+        project = ProjectBoard.objects.filter(guild_id=guild_id, id=project_id).first()
+        if project is None:
+            return Response(
+                    {"message": "Project not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        
+        serializer = BoardColumnCreateSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            last_order = (
+                BoardColumn.objects
+                .select_for_update()
+                .filter(project=project, is_deleted=False)
+                .aggregate(max_order=Max("order"))
+            )["max_order"] or 0
+
+            column = serializer.save(
+                project=project,
+                order=last_order + 1
+            )
+            
+            columns = BoardColumn.objects.filter(project=project)
+            serialized = BoardColumnSerializer(columns, many=True).data
+
+            return Response(
+                    {
+                        "data": BoardColumnSerializer(column).data,
+                        "count": len(serialized),
+                        "columns": serialized
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+        
+    @extend_schema_view(
+        get=extend_schema(
+            description="Get the details of a column by ID",
+            responses=ProjectBoardSerializer
+        ),
+        patch=extend_schema(
+            description="Edit the column data",
+            request=ProjectBoardEditSerializer,
+            responses=ProjectBoardSerializer
+        ),
+        delete=extend_schema(
+            description="Deletes the column data",
+            responses=None
+        )
+    )
+    @api_view(['GET', 'PATCH', 'DELETE'])
+    def column_detail(request, guild_id, column_id):
+        match request.method:
+            case 'GET':
+                return ProjectBotView.get_column(request, guild_id, column_id)
+
+            case 'PATCH':
+                return ProjectBotView.edit_column(request, guild_id, column_id)
+
+            case 'DELETE':
+                return ProjectBotView.delete_project(request, guild_id, column_id)
+            
+            case _:
+                return Response(
+                    {"message": "Method not allowed"},
+                    status=status.HTTP_405_METHOD_NOT_ALLOWED,
+                )
+
+    def get_column(request, guild_id, column_id):
+        return
+
+    def edit_column(request, guild_id, column_id):
+        return
+    
+    def delete_project(request, guild_id, column_id):
+        return
+    
+    @api_view(['POST'])
+    def reorder_column(request, guild_id, project_id):
+        return

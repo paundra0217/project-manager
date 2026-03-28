@@ -13,7 +13,7 @@ class ProjectBoard(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="board", description="main command for all related to managing project board in discord server")
-    async def project_command_entry(self, ctx, type, id = None):
+    async def board_command_entry(self, ctx, type, id = None):
         match type:
             case "update":
                 if id is None:
@@ -39,12 +39,12 @@ class ProjectBoard(commands.Cog):
             case _:
                 await ctx.send("❌ Invalid argument choice. Format: `?board <update|locate|resend> <project-id>`\n\n"
                            "`?board` command guide:\n"
-                           "`?board update <project-id>` - updates the project board to the latest version. For editing project, use `?project edit <project-id> command.\n"
+                           "`?board update <project-id>` - updates the project board to the latest version. For editing project, use `?project edit <project-id>` command.\n"
                            "`?board locate <project-id>` - find and locates the project board only if the project board is still there. If failed to find, use `?board resend <project-id>` to resend the board.\n"
                            "`?board resend <project-id>` - resends the project board if the original board is deleted. For changing channel, edit the project instead.\n")
 
-    @project_command_entry.error
-    async def project_command_err(self, ctx, err):
+    @board_command_entry.error
+    async def board_command_err(self, ctx, err):
         if isinstance(err, commands.MissingRequiredArgument):
             await ctx.send("❌ Missing required argument. Format: `?board <update|locate|resend> <project-id>`\n\n"
                            "`?board` command guide:\n"
@@ -140,7 +140,7 @@ class ProjectBoard(commands.Cog):
             response = requests.patch(
                 os.getenv("API_URL") + f'guilds/{ctx.message.guild.id}/projects/{id}',
                 json={
-                    'message': board.id,
+                    'message_id': board.id,
                     'updated_by': ctx.author.id
                     }
                 )

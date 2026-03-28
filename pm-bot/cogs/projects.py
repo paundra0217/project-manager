@@ -1,7 +1,7 @@
 from discord import Embed, Color, NotFound, Forbidden
 from discord.ext import commands
 from datetime import datetime
-from utils import get_project, parse_project_embed
+from utils import get_project, parse_project_embed, get_board_channel
 import requests
 import os
 import traceback
@@ -204,20 +204,7 @@ class Projects(commands.Cog):
         if data is None:
             return
         
-        channel = None
-        try:
-            old_channel_id = int(data['channel_id'])
-            channel = self.bot.get_channel(old_channel_id)
-
-            if channel is None:
-                channel = await self.bot.fetch_channel(old_channel_id)
-        except NotFound:
-            pass
-        except Forbidden:
-            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel if needed.")
-        except Exception as e:
-            traceback.print_exc()
-            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+        channel = await get_board_channel(bot=self.bot, ctx=ctx, channel_id=int(data['channel_id']))
 
         embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
         if channel is not None:
@@ -244,21 +231,9 @@ class Projects(commands.Cog):
         name = data['name']
         description = data['description']
         old_board_id = data['message_id']
-        channel = None
+        old_channel_id = int(data['channel_id'])
 
-        try:
-            old_channel_id = int(data['channel_id'])
-            channel = self.bot.get_channel(old_channel_id)
-
-            if channel is None:
-                channel = await self.bot.fetch_channel(old_channel_id)
-        except NotFound:
-            pass
-        except Forbidden:
-            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel instead.")
-        except Exception as e:
-            traceback.print_exc()
-            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+        channel = await get_board_channel(bot=self.bot, ctx=ctx, channel_id=old_channel_id)
 
         embed = parse_project_embed(name=name, description=description, project_id=data['id'])
         if channel is not None:
@@ -454,20 +429,7 @@ class Projects(commands.Cog):
             await ctx.send("❌ Project already archived!")
             return
         
-        channel = None
-        try:
-            old_channel_id = int(data['channel_id'])
-            channel = self.bot.get_channel(old_channel_id)
-
-            if channel is None:
-                channel = await self.bot.fetch_channel(old_channel_id)
-        except NotFound:
-            pass
-        except Forbidden:
-            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions, or change the project board channel before archiving.")
-        except Exception as e:
-            traceback.print_exc()
-            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+        channel = await get_board_channel(bot=self.bot, ctx=ctx, channel_id=int(data['channel_id']))
 
         embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
         if channel is not None:
@@ -528,20 +490,7 @@ class Projects(commands.Cog):
         if data is None:
             return
 
-        channel = None
-        try:
-            old_channel_id = int(data['channel_id'])
-            channel = self.bot.get_channel(old_channel_id)
-
-            if channel is None:
-                channel = await self.bot.fetch_channel(old_channel_id)
-        except NotFound:
-            pass
-        except Forbidden:
-            await ctx.send("⚠️ It looks like I do not have permission to access the channel or message where the project board lives. Double check my permissions.")
-        except Exception as e:
-            traceback.print_exc()
-            await ctx.send("⚠️ Cannot get channel of the project due to an unknown Error Occured.")
+        channel = await get_board_channel(bot=self.bot, ctx=ctx, channel_id=int(data['channel_id']))
 
         embed = parse_project_embed(name=data['name'], description=data['description'], project_id=data['id'])
         if channel is not None:
